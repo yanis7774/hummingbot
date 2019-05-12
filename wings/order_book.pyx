@@ -288,6 +288,11 @@ cdef class OrderBook(PubSub):
         raise EnvironmentError(f"Requested volume {volume} is beyond order book depth - no price quote is possible.")
 
     cdef double c_get_vwap_for_volume(self, bint is_buy, double volume) except? -1:
+        """
+        Note @dev: this does not adjust for a partial amount at the final row.
+        For example, for order book of [(price = 100, quantity = 10), (110, 10)],
+        this function returns 105 for 15 volume, rather than (100 * 10 + 110 * 5) / 15 = 103.33
+        """
         cdef:
             double total_cost  = 0
             double total_volume = 0
@@ -307,6 +312,12 @@ cdef class OrderBook(PubSub):
                                f"possible")
 
     cdef double c_get_price_for_quote_volume(self, bint is_buy, double quote_volume) except? -1:
+        """
+        Get the last price from an order book at an input order book depth.
+        :param is_bid: Whether the order to make will be bid or ask.
+        :param quote_volume: Volume in quote currency for price quote.
+        :return: The price at that volume amount.
+        """
         cdef:
             double cumulative_volume = 0
         if is_buy:

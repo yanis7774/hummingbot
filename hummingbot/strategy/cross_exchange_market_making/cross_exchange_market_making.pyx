@@ -478,6 +478,7 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                     self.logger().warning(f"WARNING: Some markets are not connected or are down at the moment. Market "
                                           f"making may be dangerous when markets or networks are unstable.")
 
+            # Create dictionary mapping market pairs to active orders for that market pair
             market_pair_to_active_orders = defaultdict(list)
 
             for maker_market, limit_order in active_maker_orders:
@@ -1097,10 +1098,12 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
 
         # Calculate the next price from the top, and the order size limit.
         if is_bid:
+            # Get the price increment convention used by the exchange for the asset
             price_quantum = maker_market.c_get_order_price_quantum(
                 market_pair.maker_symbol,
                 top_bid_price
             )
+            # Calculate the best bid price + 1 tick
             next_price = (round(Decimal(top_bid_price) / price_quantum) + 1) * price_quantum
 
             # Calculate the order size limit from maker and taker market balances.
@@ -1130,10 +1133,13 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
             size_limit = maker_market.c_quantize_order_amount(market_pair.maker_symbol, raw_size_limit)
             return next_price, size_limit
         else:
+            # Get the price increment convention used by the exchange for the asset
             price_quantum = maker_market.c_get_order_price_quantum(
                 market_pair.maker_symbol,
                 top_ask_price
             )
+
+            # Calculate the best bid price + 1 tick
             next_price = (round(Decimal(top_ask_price) / price_quantum) - 1) * price_quantum
 
             # Calculate the order size limit from maker and taker market balances.
@@ -1168,6 +1174,14 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
                                                     OrderBook taker_order_book,
                                                     bint is_maker_bid,
                                                     double maker_order_size) except? -1:
+        """
+        Calculate the weighted average price of all the taker orders that would need to be filled to 
+        hedge the maker order size.
+        :param taker_order_book: The order book for the hedging market.
+        :param is_maker_bid: Denote if maker is the bid side.
+        :param maker_order_size: The target amount to be hedged.
+        :return: weighted average price of taker orders required to hedge.
+        """
         cdef:
             double price_quantity_product_sum = 0
             double quantity_sum = 0
@@ -1203,13 +1217,23 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
         return deque(), deque()
 
     cdef c_take_suggested_price_sample(self, object market_pair, list active_orders):
+        """
+        NOTE: This function needs explanation on what it is doing and how it is used to set the
+        xemm strategy pricing. Steps below are commented, but need to describe as a whole what
+        it is doing.
+        - Why is it using your own active order depth?
+        """
         if ((self._last_timestamp // self.ORDER_ADJUST_SAMPLE_INTERVAL) <
                 (self._current_timestamp // self.ORDER_ADJUST_SAMPLE_INTERVAL)):
             if market_pair not in self._suggested_price_samples:
                 self._suggested_price_samples[market_pair] = (deque(), deque())
 
+            # Calculate the total quote currency value of your active bid and ask orders.
             own_bid_depth = float(sum([o.price * o.quantity for o in active_orders if o.is_buy is True]))
             own_ask_depth = float(sum([o.price * o.quantity for o in active_orders if o.is_buy is not True]))
+
+            # Calculate the suggested order prices factoring in your own order depth amount (calculated above)
+            # and top depth tolerance.
             suggested_bid_price, _ = self.c_get_market_making_price_and_size_limit(
                 market_pair,
                 True,
@@ -1222,8 +1246,12 @@ cdef class CrossExchangeMarketMakingStrategy(StrategyBase):
             )
 
             bid_price_samples_deque, ask_price_samples_deque = self._suggested_price_samples[market_pair]
+
+            # Add new prices to the list
             bid_price_samples_deque.append(suggested_bid_price)
             ask_price_samples_deque.append(suggested_ask_price)
+
+            # Delete the oldest suggested prices with the number of collected prices exceeds the sample window
             while len(bid_price_samples_deque) > self.ORDER_ADJUST_SAMPLE_WINDOW:
                 bid_price_samples_deque.popleft()
             while len(ask_price_samples_deque) > self.ORDER_ADJUST_SAMPLE_WINDOW:

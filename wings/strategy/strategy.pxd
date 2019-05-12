@@ -7,5 +7,8 @@ cdef class Strategy(TimeIterator):
         MarketBase _market
 
     cdef c_tick(self, double timestamp)
+    """
+    Function to periodically run strategy logic over set intervals
+    """
     cdef c_buy(self, object symbol, double amount, object order_type=*, double price=*)
     cdef c_sell(self, object symbol, double amount, object order_type=*, double price=*)
