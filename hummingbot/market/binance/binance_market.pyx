@@ -925,6 +925,8 @@ cdef class BinanceMarket(MarketBase):
         # token requested is adjusted to account for fees.
         adjusted_amount = amount / (1 - buy_fee.percent)
         decimal_amount = self.quantize_order_amount(symbol, adjusted_amount)
+        self.logger().info(f"Inside binance market, The price is {price}")
+
         if decimal_amount < trading_rule.min_order_size:
             raise ValueError(f"Buy order amount {decimal_amount} is lower than the minimum order size "
                              f"{trading_rule.min_order_size}.")

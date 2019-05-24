@@ -316,6 +316,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
 
         kwargs["expiration_ts"] = self._current_timestamp + max(self._limit_order_min_expiration, expiration_seconds)
 
+        self.log_with_clock(logging.INFO, f"INSIDE PURE MM: the amount is {amount} price is {float(price)}")
+
         if market not in self._markets:
             raise ValueError(f"market object for buy order is not in the whitelisted markets set.")
         return market.c_buy(symbol, amount,
@@ -626,8 +628,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         bid_order_id = self.c_buy_with_specific_market(
                     maker_market,
                     market_pair.maker_symbol,
-                    float(self.order_size),
-                    float(place_bid_price),
+                    Decimal(self.order_size),
+                    Decimal(place_bid_price),
                     OrderType.LIMIT,
                     expiration_seconds
                 )
@@ -651,8 +653,8 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         ask_order_id = self.c_sell_with_specific_market(
                     maker_market,
                     market_pair.maker_symbol,
-                    float(self.order_size),
-                    float(place_ask_price),
+                    Decimal(self.order_size),
+                    Decimal(place_ask_price),
                     OrderType.LIMIT,
                     expiration_seconds
                 )
