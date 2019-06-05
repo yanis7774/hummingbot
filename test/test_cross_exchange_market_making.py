@@ -478,3 +478,11 @@ class HedgedMarketMakingUnitTest(unittest.TestCase):
         self.assertEqual(0, len(self.strategy.active_bids))
         self.assertEqual(0, len(self.strategy.active_asks))
         self.assertEqual(0, len(self.cancel_order_logger.event_log))
+
+
+def main():
+    unittest.main()
+
+
+if __name__ == "__main__":
+    main()

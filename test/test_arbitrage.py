@@ -276,3 +276,11 @@ class ArbitrageUnitTest(unittest.TestCase):
             (1.045, 0.95, 1.1, 0.95, 15.0),
             (1.045, 1.005, 1.1, 1.005, 10.0)
         ])
+
+
+def main():
+    unittest.main()
+
+
+if __name__ == "__main__":
+    main()
