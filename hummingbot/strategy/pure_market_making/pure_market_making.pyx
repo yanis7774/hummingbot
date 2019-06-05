@@ -78,7 +78,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
     ORDER_FILLED_EVENT_TAG = MarketEvent.OrderFilled.value
     ORDER_CANCELLED_EVENT_TAG = MarketEvent.OrderCancelled.value
     ORDER_EXPIRED_EVENT_TAG = MarketEvent.OrderExpired.value
-    TRANSACTION_FAILURE_EVENT_TAG = MarketEvent.TransactionFailure.value
+    ORDER_FAILURE_EVENT_TAG = MarketEvent.OrderFailure.value
 
     OPTION_LOG_NULL_ORDER_SIZE = 1 << 0
     OPTION_LOG_REMOVING_ORDER = 1 << 1
@@ -162,7 +162,7 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             typed_market.c_add_listener(self.ORDER_FILLED_EVENT_TAG, self._order_filled_listener)
             typed_market.c_add_listener(self.ORDER_CANCELLED_EVENT_TAG, self._order_cancelled_listener)
             typed_market.c_add_listener(self.ORDER_EXPIRED_EVENT_TAG, self._order_expired_listener)
-            typed_market.c_add_listener(self.TRANSACTION_FAILURE_EVENT_TAG, self._order_failed_listener)
+            typed_market.c_add_listener(self.ORDER_FAILURE_EVENT_TAG, self._order_failed_listener)
 
     @property
     def active_markets(self) -> List[MarketBase]:
@@ -471,6 +471,10 @@ cdef class PureMarketMakingStrategy(StrategyBase):
                         f"({market_pair.maker_symbol}) Maker sell order of "
                         f"{order_filled_event.amount} {market_pair.maker_base_currency} filled."
                     )
+
+            # if order_filled_event.amount >= self.order_size:
+            #     self.c_stop_tracking_order(market_pair, order_id)
+
 
     cdef c_did_fail_order(self, object order_failed_event):
         cdef:
