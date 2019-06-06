@@ -103,10 +103,13 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         return s_logger
 
     def __init__(self, market_pairs: List[PureMarketPair],
-                 order_size: float = 1.0,
+                 order_start_size: float = 1.0,
                  bid_place_threshold: float = 0.01,
                  ask_place_threshold: float = 0.01,
                  cancel_order_wait_time: float = 60,
+                 number_of_orders: int = 1,
+                 order_interval_size: float = 0,
+                 order_size_increment: float = 0,
                  logging_options: int = OPTION_LOG_ALL,
                  limit_order_min_expiration: float = 130.0,
                  status_report_interval: float = 900):
@@ -124,7 +127,10 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         self._markets = self._maker_markets
         self._bid_place_threshold = bid_place_threshold
         self._ask_place_threshold = ask_place_threshold
-        self._order_size = order_size
+        self._number_of_orders = number_of_orders
+        self._order_interval_size = order_interval_size
+        self._order_size_increment = order_size_increment
+        self._order_start_size = order_start_size
         self._cancel_order_wait_time = cancel_order_wait_time
         # Add radar relay type exchanges where you can expire orders instead of cancelling them
         self._radar_relay_type_exchanges = {'radar_relay', 'bamboo_relay'}
@@ -205,8 +211,20 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         return self._ask_place_threshold
 
     @property
-    def order_size(self) -> float:
-        return self._order_size
+    def order_start_size(self) -> float:
+        return self._order_start_size
+
+    @property
+    def number_of_orders(self) -> int:
+        return self._number_of_orders
+
+    @property
+    def order_interval_size(self) -> float:
+        return self._order_interval_size
+
+    @property
+    def order_size_increment(self) -> float:
+        return self._order_size_increment
 
     @logging_options.setter
     def logging_options(self, int64_t logging_options):
@@ -578,23 +596,38 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             double top_ask_price = maker_market.c_get_price(market_pair.maker_symbol, True)
             double mid_price = (top_ask_price + top_bid_price) / 2
             double place_bid_price = mid_price * (1 - self.bid_place_threshold)
+            double per_order_size = self.order_start_size
+            double per_order_price = place_bid_price
+            double required_quote_asset_amount = 0
+            double total_order_size = self.order_start_size
+            double increment_size = 0
 
-        if base_asset_amount < self.order_size:
+        for _ in range(self.number_of_orders-1):
+            increment_size += self.order_size_increment
+            total_order_size += self.order_start_size + increment_size
+
+        if base_asset_amount < total_order_size:
             if self._logging_options:
                 self.log_with_clock(
                     logging.INFO,
                     f"({market_pair.maker_base_currency}) balance of ({base_asset_amount:.8g}) "
-                    f"is less than the required size of: ({self.order_size:.8g}). "
+                    f"is less than the required total order amount of: ({total_order_size:.8g}). "
                     f"Running again"
                 )
             return False
 
-        if quote_asset_amount < (place_bid_price * self.order_size):
+        for _ in range(self.number_of_orders):
+            required_quote_asset_amount += per_order_size * per_order_price
+            per_order_price = per_order_price * ( 1 - self.order_interval_size)
+            per_order_size += self.order_size_increment
+
+
+        if quote_asset_amount < required_quote_asset_amount:
             if self._logging_options:
                 self.log_with_clock(
                     logging.INFO,
                     f"({market_pair.maker_quote_currency}) balance of ({quote_asset_amount:.8g}) "
-                    f"is now less than the required to place a bid order of size: ({self.order_size:.8g}) at ({place_bid_price:.8g}). "
+                    f"is now less than the required to place a buy orders for a total size of: ({total_order_size:.8g}). "
                     f"Running again"
                 )
             return False

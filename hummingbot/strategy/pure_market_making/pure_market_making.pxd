@@ -8,6 +8,7 @@ from hummingbot.strategy.strategy_base cimport StrategyBase
 
 cdef class PureMarketMakingStrategy(StrategyBase):
     cdef:
+        int _number_of_orders
         set _markets
         set _maker_markets
         set _radar_relay_type_exchanges
@@ -16,10 +17,12 @@ cdef class PureMarketMakingStrategy(StrategyBase):
         double _bid_place_threshold
         double _ask_place_threshold
         double _cancel_order_wait_time
-        double _order_size
+        double _order_start_size
         double _status_report_interval
         double _last_timestamp
         double _limit_order_min_expiration
+        double _order_size_increment
+        double _order_interval_size
         dict _tracked_maker_orders
         dict _order_id_to_market_pair
         dict _shadow_tracked_maker_orders
