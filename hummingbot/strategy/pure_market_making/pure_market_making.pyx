@@ -648,58 +648,66 @@ cdef class PureMarketMakingStrategy(StrategyBase):
             double mid_price = (top_ask_price + top_bid_price) / 2
             double place_bid_price = mid_price * (1 - self.bid_place_threshold)
             double place_ask_price = mid_price * (1 + self.ask_place_threshold)
+            double order_size = self.order_start_size
 
         if maker_name in self._radar_relay_type_exchanges:
             expiration_seconds = self._cancel_order_wait_time
         else:
             expiration_seconds = NaN
 
-        if self._logging_options & self.OPTION_LOG_CREATE_ORDER:
-                    self.log_with_clock(
-                        logging.INFO,
-                        f"({market_pair.maker_symbol}) Creating limit bid order for "
-                        f"{self.order_size} {market_pair.maker_base_currency} at "
-                        f"{place_bid_price} {market_pair.maker_quote_currency}."
+
+        for _ in range(self.number_of_orders):
+
+            if self._logging_options & self.OPTION_LOG_CREATE_ORDER:
+                        self.log_with_clock(
+                            logging.INFO,
+                            f"({market_pair.maker_symbol}) Creating limit bid order for "
+                            f"{order_size} {market_pair.maker_base_currency} at "
+                            f"{place_bid_price} {market_pair.maker_quote_currency}."
+                        )
+
+            bid_order_id = self.c_buy_with_specific_market(
+                        maker_market,
+                        market_pair.maker_symbol,
+                        order_size,
+                        place_bid_price,
+                        OrderType.LIMIT,
+                        expiration_seconds
                     )
 
-        bid_order_id = self.c_buy_with_specific_market(
-                    maker_market,
-                    market_pair.maker_symbol,
-                    self.order_size,
-                    place_bid_price,
-                    OrderType.LIMIT,
-                    expiration_seconds
-                )
+            self.c_start_tracking_order(
+                market_pair,
+                bid_order_id,
+                True,
+                place_bid_price,
+                order_size
+            )
 
-        self.c_start_tracking_order(
-            market_pair,
-            bid_order_id,
-            True,
-            place_bid_price,
-            self.order_size
-        )
+            if self._logging_options & self.OPTION_LOG_CREATE_ORDER:
+                        self.log_with_clock(
+                            logging.INFO,
+                            f"({market_pair.maker_symbol}) Creating limit ask order for "
+                            f"{order_size} {market_pair.maker_base_currency} at "
+                            f"{place_ask_price} {market_pair.maker_quote_currency}."
+                        )
 
-        if self._logging_options & self.OPTION_LOG_CREATE_ORDER:
-                    self.log_with_clock(
-                        logging.INFO,
-                        f"({market_pair.maker_symbol}) Creating limit ask order for "
-                        f"{self.order_size} {market_pair.maker_base_currency} at "
-                        f"{place_ask_price} {market_pair.maker_quote_currency}."
+            ask_order_id = self.c_sell_with_specific_market(
+                        maker_market,
+                        market_pair.maker_symbol,
+                        order_size,
+                        place_ask_price,
+                        OrderType.LIMIT,
+                        expiration_seconds
                     )
 
-        ask_order_id = self.c_sell_with_specific_market(
-                    maker_market,
-                    market_pair.maker_symbol,
-                    self.order_size,
-                    place_ask_price,
-                    OrderType.LIMIT,
-                    expiration_seconds
-                )
+            self.c_start_tracking_order(
+                        market_pair,
+                        ask_order_id,
+                        False,
+                        place_ask_price,
+                        order_size
+                    )
 
-        self.c_start_tracking_order(
-                    market_pair,
-                    ask_order_id,
-                    False,
-                    place_ask_price,
-                    self.order_size
-                )
+            order_size += self.order_size_increment
+            place_bid_price *= 1 - self.order_interval_size
+            place_ask_price *= 1 + self.order_interval_size
